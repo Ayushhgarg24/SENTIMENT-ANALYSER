@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Sentiment Analyzer</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+        .input-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            resize: vertical;
+            min-height: 100px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            display: block;
+            margin: 16px 0;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        
+        .results-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .sentiment-card {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .xgboost-card {
+            background-color: #e8f4fd;
+            border-left: 5px solid #3498db;
+        }
+        
+        .roberta-card {
+            background-color: #eafaf1;
+            border-left: 5px solid #2ecc71;
+        }
+        
+        .sentiment-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .sentiment-emoji {
+            font-size: 40px;
+            margin-right: 15px;
+            text-align: center;
+            width: 60px;
+        }
+        
+        .sentiment-text {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .progress-container {
+            margin: 10px 0;
+        }
+        
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        
+        .progress-bar-bg {
+            height: 12px;
+            background-color: #e0e0e0;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.7s ease-out;
+        }
+        
+        .positive-bar {
+            background-color: #2ecc71;
+        }
+        
+        .negative-bar {
+            background-color: #e74c3c;
+        }
+        
+        .analyzed-text {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            font-style: italic;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .loading-spinner {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error-message {
+            background-color: #fdeded;
+            color: #d32f2f;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+            border-left: 5px solid #d32f2f;
+            display: none;
+        }
+        
+        .overall-sentiment {
+            border-left: 5px solid #9b59b6;
+            background-color: #f5eef8;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .model-comparison {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .model-card {
+            flex: 1;
+        }
+        
+        @media (max-width: 700px) {
+            .model-comparison {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>✨ Sentiment Analyzer ✨</h1>
+    
+    <div class="input-container">
+        <label for="textInput">Enter text to analyze:</label>
+        <textarea id="textInput" placeholder="Type or paste your text here..."></textarea>
+        <button id="analyzeButton">Analyze Sentiment</button>
+    </div>
+    
+    <div class="loading" id="loadingIndicator">
+        <div class="loading-spinner"></div>
+        <p>Analyzing sentiment...</p>
+    </div>
+    
+    <div class="error-message" id="errorMessage"></div>
+    
+    <div class="results-container" id="resultsContainer">
+        <div class="overall-sentiment">
+            <h2>Overall Sentiment</h2>
+            <div class="sentiment-header">
+                <div class="sentiment-emoji" id="overallEmoji">😐</div>
+                <div class="sentiment-text" id="overallSentiment">Neutral</div>
+            </div>
+            
+            <div class="progress-container">
+                <div class="progress-label">
+                    <span>Positive</span>
+                    <span id="overallPositiveScore">0%</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar positive-bar" id="overallPositiveBar" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <div class="progress-container">
+                <div class="progress-label">
+                    <span>Negative</span>
+                    <span id="overallNegativeScore">0%</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar negative-bar" id="overallNegativeBar" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+        
+        <h2>Model Predictions</h2>
+        <div class="model-comparison">
+            <div class="model-card">
+                <div class="sentiment-card xgboost-card">
+                    <h3>XGBoost Model</h3>
+                    <div class="sentiment-header">
+                        <div class="sentiment-emoji" id="xgboostEmoji">🤔</div>
+                        <div class="sentiment-text" id="xgboostPrediction">N/A</div>
+                    </div>
+                    
+                    <div class="progress-container">
+                        <div class="progress-label">
+                            <span>Positive</span>
+                            <span id="xgboostPositiveScore">0%</span>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar positive-bar" id="xgboostPositiveBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="progress-container">
+                        <div class="progress-label">
+                            <span>Negative</span>
+                            <span id="xgboostNegativeScore">0%</span>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar negative-bar" id="xgboostNegativeBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="model-card">
+                <div class="sentiment-card roberta-card">
+                    <h3>RoBERTa Model</h3>
+                    <div class="sentiment-header">
+                        <div class="sentiment-emoji" id="robertaEmoji">🤔</div>
+                        <div class="sentiment-text" id="robertaPrediction">N/A</div>
+                    </div>
+                    
+                    <div class="progress-container">
+                        <div class="progress-label">
+                            <span>Positive</span>
+                            <span id="robertaPositiveScore">0%</span>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar positive-bar" id="robertaPositiveBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="progress-container">
+                        <div class="progress-label">
+                            <span>Negative</span>
+                            <span id="robertaNegativeScore">0%</span>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar negative-bar" id="robertaNegativeBar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="analyzed-text">
+            <h3>Analyzed Text:</h3>
+            <p id="inputTextDisplay"></p>
+        </div>
+    </div>
+    
+    <script>
+        const API_URL = 'http://localhost:8000/predict';
+        
+        document.getElementById('analyzeButton').addEventListener('click', analyzeSentiment);
+        
+        async function analyzeSentiment() {
+            const textInput = document.getElementById('textInput').value.trim();
+            
+            if (!textInput) {
+                showError("Please enter some text to analyze.");
+                return;
+            }
+            
+            // Reset and show loading indicator
+            showLoading(true);
+            hideError();
+            hideResults();
+            
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: textInput })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Server responded with status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                displayResults(result, textInput);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showError(`Failed to analyze sentiment: ${error.message}. Make sure your FastAPI server is running on port 8000.`);
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        function displayResults(result, inputText) {
+            // Display the input text
+            document.getElementById('inputTextDisplay').textContent = inputText;
+            
+            // Get probability values
+            const xgboostPositive = result.probabilities.XGBoost_Positive;
+            const xgboostNegative = result.probabilities.XGBoost_Negative;
+            const robertaPositive = result.probabilities.RoBERTa_Positive;
+            const robertaNegative = result.probabilities.RoBERTa_Negative;
+            
+            // Calculate overall sentiment (average of both models)
+            const overallPositive = (xgboostPositive + robertaPositive) / 2;
+            const overallNegative = (xgboostNegative + robertaNegative) / 2;
+            
+            // Format percentages
+            const formatPercent = value => `${(value * 100).toFixed(1)}%`;
+            
+            // Update XGBoost display
+            document.getElementById('xgboostPrediction').textContent = result.xgboost_prediction;
+            document.getElementById('xgboostEmoji').textContent = getSentimentEmoji(xgboostPositive, xgboostNegative);
+            document.getElementById('xgboostPositiveScore').textContent = formatPercent(xgboostPositive);
+            document.getElementById('xgboostNegativeScore').textContent = formatPercent(xgboostNegative);
+            document.getElementById('xgboostPositiveBar').style.width = formatPercent(xgboostPositive);
+            document.getElementById('xgboostNegativeBar').style.width = formatPercent(xgboostNegative);
+            
+            // Update RoBERTa display
+            document.getElementById('robertaPrediction').textContent = result.roberta_prediction;
+            document.getElementById('robertaEmoji').textContent = getSentimentEmoji(robertaPositive, robertaNegative);
+            document.getElementById('robertaPositiveScore').textContent = formatPercent(robertaPositive);
+            document.getElementById('robertaNegativeScore').textContent = formatPercent(robertaNegative);
+            document.getElementById('robertaPositiveBar').style.width = formatPercent(robertaPositive);
+            document.getElementById('robertaNegativeBar').style.width = formatPercent(robertaNegative);
+            
+            // Update overall sentiment display
+            const overallSentiment = overallPositive > overallNegative ? 'Positive' : 'Negative';
+            document.getElementById('overallSentiment').textContent = overallSentiment;
+            document.getElementById('overallEmoji').textContent = getSentimentEmoji(overallPositive, overallNegative);
+            document.getElementById('overallPositiveScore').textContent = formatPercent(overallPositive);
+            document.getElementById('overallNegativeScore').textContent = formatPercent(overallNegative);
+            document.getElementById('overallPositiveBar').style.width = formatPercent(overallPositive);
+            document.getElementById('overallNegativeBar').style.width = formatPercent(overallNegative);
+            
+            // Show results container
+            showResults();
+        }
+        
+        function getSentimentEmoji(positive, negative) {
+            const diff = positive - negative;
+            
+            if (diff > 0.7) return "😄"; // Very positive
+            if (diff > 0.4) return "🙂"; // Positive
+            if (diff > 0.1) return "😊"; // Slightly positive
+            if (diff > -0.1) return "😐"; // Neutral
+            if (diff > -0.4) return "😕"; // Slightly negative
+            if (diff > -0.7) return "☹️"; // Negative
+            return "😞"; // Very negative
+        }
+        
+        function showLoading(show) {
+            document.getElementById('loadingIndicator').style.display = show ? 'block' : 'none';
+        }
+        
+        function showError(message) {
+            const errorElement = document.getElementById('errorMessage');
+            errorElement.textContent = message;
+            errorElement.style.display = 'block';
+        }
+        
+        function hideError() {
+            document.getElementById('errorMessage').style.display = 'none';
+        }
+        
+        function showResults() {
+            document.getElementById('resultsContainer').style.display = 'block';
+        }
+        
+        function hideResults() {
+            document.getElementById('resultsContainer').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
